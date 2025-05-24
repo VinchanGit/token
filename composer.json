@@ -1,5 +1,5 @@
 {
-    "name": "vinchan/jwt",
+    "name": "vinchan/token",
     "type": "library",
     "description": "json web token",
     "license": "MIT",
