@@ -36,86 +36,27 @@ class Ecdsa implements EncipherInterface
             throw new \RuntimeException('Private key not set');
         }
 
-        // 生成随机密钥用于对称加密
-        $symmetricKey = random_bytes(32);
-
-        // 生成随机 IV
-        $iv = random_bytes(16);
-
-        // 使用 AES-256-CBC 加密原始数据
-        $encrypted = openssl_encrypt($string, 'aes-256-cbc', $symmetricKey, OPENSSL_RAW_DATA, $iv);
-
-        if ($encrypted === false) {
-            throw new \RuntimeException('Encryption failed');
-        }
-
-        // 对对称密钥进行签名
-        $keySignature = '';
-        $success = openssl_sign($symmetricKey, $keySignature, $this->privateKey, $this->getOpenSSLAlgorithm());
+        // 使用私钥对 JWT payload 进行 ECDSA 签名
+        $signature = '';
+        $success = openssl_sign($string, $signature, $this->privateKey, $this->getOpenSSLAlgorithm());
 
         if (! $success) {
-            throw new \RuntimeException('Key signing failed');
+            throw new \RuntimeException('ECDSA signing failed');
         }
 
-        // 组合签名长度、签名、对称密钥、IV和加密数据
-        $signatureLength = pack('N', strlen($keySignature));
-        $keyLength = pack('N', strlen($symmetricKey));
-        $result = $signatureLength . $keySignature . $keyLength . $symmetricKey . $iv . $encrypted;
-
-        return base64_encode($result);
+        return base64_encode($signature);
     }
 
     public function decode(string $string): bool|string
     {
-        if (! $this->publicKey) {
-            throw new \RuntimeException('Public key not set');
-        }
-
-        $data = base64_decode($string);
-        if ($data === false) {
+        // 对于 ECDSA，decode 方法用于解码签名
+        // 实际验证需要使用 verify 方法
+        $signature = base64_decode($string);
+        if ($signature === false) {
             return false;
         }
 
-        if (strlen($data) < 8) {
-            return false;
-        }
-
-        $offset = 0;
-
-        // 解析签名长度和签名
-        $signatureLength = unpack('N', substr($data, $offset, 4))[1];
-        $offset += 4;
-
-        if (strlen($data) < $offset + $signatureLength + 4) {
-            return false;
-        }
-
-        $keySignature = substr($data, $offset, $signatureLength);
-        $offset += $signatureLength;
-
-        // 解析对称密钥长度和密钥
-        $keyLength = unpack('N', substr($data, $offset, 4))[1];
-        $offset += 4;
-
-        if (strlen($data) < $offset + $keyLength + 16) {
-            return false;
-        }
-
-        $symmetricKey = substr($data, $offset, $keyLength);
-        $offset += $keyLength;
-
-        // 验证对称密钥的签名
-        $verifyResult = openssl_verify($symmetricKey, $keySignature, $this->publicKey, $this->getOpenSSLAlgorithm());
-        if ($verifyResult !== 1) {
-            return false;
-        }
-
-        // 提取 IV 和加密数据
-        $iv = substr($data, $offset, 16);
-        $encrypted = substr($data, $offset + 16);
-
-        // 解密
-        return openssl_decrypt($encrypted, 'aes-256-cbc', $symmetricKey, OPENSSL_RAW_DATA, $iv);
+        return $signature;
     }
 
     public function verify(string $data, string $signature): bool
@@ -130,6 +71,16 @@ class Ecdsa implements EncipherInterface
         }
 
         return openssl_verify($data, $decodedSignature, $this->publicKey, $this->getOpenSSLAlgorithm()) === 1;
+    }
+
+    public function sign(string $headerPayload): string
+    {
+        return $this->encode($headerPayload);
+    }
+
+    public function verifyJwt(string $headerPayload, string $signature): bool
+    {
+        return $this->verify($headerPayload, $signature);
     }
 
     public function setPrivateKey(string $privateKeyPath): self

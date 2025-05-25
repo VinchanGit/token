@@ -32,39 +32,31 @@ class Rsa implements EncipherInterface
 
     public function encode(string $string): string
     {
-        if (! $this->publicKey) {
-            throw new \RuntimeException('Public key not set');
-        }
-
-        $encrypted = '';
-        $success = openssl_public_encrypt($string, $encrypted, $this->publicKey);
-
-        if (! $success) {
-            throw new \RuntimeException('RSA encryption failed');
-        }
-
-        return base64_encode($encrypted);
-    }
-
-    public function decode(string $string): bool|string
-    {
         if (! $this->privateKey) {
             throw new \RuntimeException('Private key not set');
         }
 
-        $encryptedData = base64_decode($string);
-        if ($encryptedData === false) {
-            return false;
-        }
-
-        $decrypted = '';
-        $success = openssl_private_decrypt($encryptedData, $decrypted, $this->privateKey);
+        // 使用私钥对 JWT payload 进行签名
+        $signature = '';
+        $success = openssl_sign($string, $signature, $this->privateKey, $this->getOpenSSLAlgorithm());
 
         if (! $success) {
+            throw new \RuntimeException('RSA signing failed');
+        }
+
+        return base64_encode($signature);
+    }
+
+    public function decode(string $string): bool|string
+    {
+        // 对于 RSA，decode 方法用于解码签名
+        // 实际验证需要使用 verify 方法
+        $signature = base64_decode($string);
+        if ($signature === false) {
             return false;
         }
 
-        return $decrypted;
+        return $signature;
     }
 
     public function verify(string $data, string $signature): bool
@@ -79,6 +71,16 @@ class Rsa implements EncipherInterface
         }
 
         return openssl_verify($data, $decodedSignature, $this->publicKey, $this->getOpenSSLAlgorithm()) === 1;
+    }
+
+    public function sign(string $headerPayload): string
+    {
+        return $this->encode($headerPayload);
+    }
+
+    public function verifyJwt(string $headerPayload, string $signature): bool
+    {
+        return $this->verify($headerPayload, $signature);
     }
 
     public function setPrivateKey(string $privateKeyPath): self

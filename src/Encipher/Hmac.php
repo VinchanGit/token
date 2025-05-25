@@ -27,64 +27,22 @@ class Hmac implements EncipherInterface
             throw new \RuntimeException('Secret key not set');
         }
 
-        // 生成随机 IV
-        $iv = random_bytes(16);
+        // 使用 HMAC 对 JWT payload 进行签名
+        $signature = hash_hmac($this->algorithm, $string, $this->secret, true);
 
-        // 使用 AES-256-CBC 加密
-        $encrypted = openssl_encrypt($string, 'aes-256-cbc', $this->secret, OPENSSL_RAW_DATA, $iv);
-
-        if ($encrypted === false) {
-            throw new \RuntimeException('Encryption failed');
-        }
-
-        // 组合 IV 和加密数据
-        $data = $iv . $encrypted;
-
-        // 生成 HMAC 用于完整性验证
-        $hmac = hash_hmac($this->algorithm, $data, $this->secret, true);
-
-        // 组合 HMAC 和数据
-        $result = $hmac . $data;
-
-        return base64_encode($result);
+        return base64_encode($signature);
     }
 
     public function decode(string $string): bool|string
     {
-        if (empty($this->secret)) {
-            throw new \RuntimeException('Secret key not set');
-        }
-
-        $data = base64_decode($string);
-        if ($data === false) {
+        // 对于 HMAC，decode 方法用于验证签名
+        // 这里只是解码签名，实际验证需要原始数据
+        $decoded = base64_decode($string);
+        if ($decoded === false) {
             return false;
         }
 
-        // 获取哈希长度
-        $hashLength = $this->getHashLength();
-
-        if (strlen($data) < $hashLength + 16) {
-            return false;
-        }
-
-        // 分离 HMAC 和数据
-        $hmac = substr($data, 0, $hashLength);
-        $encryptedData = substr($data, $hashLength);
-
-        // 验证 HMAC
-        $expectedHmac = hash_hmac($this->algorithm, $encryptedData, $this->secret, true);
-        if (! hash_equals($hmac, $expectedHmac)) {
-            return false;
-        }
-
-        // 分离 IV 和加密数据
-        $iv = substr($encryptedData, 0, 16);
-        $encrypted = substr($encryptedData, 16);
-
-        // 解密
-        $decrypted = openssl_decrypt($encrypted, 'aes-256-cbc', $this->secret, OPENSSL_RAW_DATA, $iv);
-
-        return $decrypted;
+        return $decoded;
     }
 
     public function verify(string $data, string $signature): bool
@@ -97,6 +55,16 @@ class Hmac implements EncipherInterface
 
         // 使用恒定时间比较防止时序攻击
         return hash_equals($expectedSignature, $signature);
+    }
+
+    public function sign(string $headerPayload): string
+    {
+        return $this->encode($headerPayload);
+    }
+
+    public function verifyJwt(string $headerPayload, string $signature): bool
+    {
+        return $this->verify($headerPayload, $signature);
     }
 
     public function setSecret(string $secret): self
@@ -119,19 +87,9 @@ class Hmac implements EncipherInterface
     private function validateAlgorithm(string $algorithm): string
     {
         $supported = ['sha256', 'sha384', 'sha512'];
-        if (! in_array($algorithm, $supported)) {
+        if (!in_array($algorithm, $supported)) {
             throw new \InvalidArgumentException("Unsupported algorithm: {$algorithm}. Supported algorithms: " . implode(', ', $supported));
         }
         return $algorithm;
-    }
-
-    private function getHashLength(): int
-    {
-        return match ($this->algorithm) {
-            'sha256' => 32,
-            'sha384' => 48,
-            'sha512' => 64,
-            default => 32,
-        };
     }
 }
