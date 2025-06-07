@@ -89,7 +89,7 @@ class TokenManager
     public function generate(?string $key = null): string
     {
         if ($this->authenticatable === null) {
-            throw new SignatureException('载荷是必需的');
+            throw new SignatureException('authenticatable cannot be null');
         }
 
         $config = $this->getConfig();

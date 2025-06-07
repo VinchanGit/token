@@ -73,7 +73,7 @@ class Authenticatable
             throw new \InvalidArgumentException('数组必须包含 id 键');
         }
 
-        $id = $data['id'];
+        $id = (string) $data['id'];
         unset($data['id']);
 
         return new self($id, $data);
