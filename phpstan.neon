@@ -1,0 +1,9 @@
+parameters:
+    level: 5
+    paths:
+        - src
+    excludePaths:
+        - src/Middleware/JwtAuthMiddleware.php
+    treatPhpDocTypesAsCertain: false
+    ignoreErrors:
+        - '#Unsafe usage of new static\(\)#' 
